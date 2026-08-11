@@ -1,0 +1,24 @@
+# Render Blueprint
+# Deploy with: render blueprint create
+
+services:
+  - type: web
+    name: travel-planner-backend
+    runtime: docker
+    dockerfile: ./backend/Dockerfile
+    region: oregon
+    plan: starter
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: POSTGRES_URL
+        fromDatabase:
+          name: travel-planner-db
+          property: connectionString
+      - key: QDRANT_URL
+        value: https://your-qdrant-cluster.qdrant.tech
+
+databases:
+  - name: travel-planner-db
+    plan: starter
+    databaseName: travel
