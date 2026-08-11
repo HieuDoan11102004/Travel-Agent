@@ -47,6 +47,13 @@ ITINERARIES: dict[str, dict] = {}
 
 def _load_places() -> list[dict]:
     """Load places from seed data."""
+    # Try wikivoyage data first, fall back to original seed data
+    wikivoyage_file = Path("/app/seed_data/wikivoyage_places.json")
+    if wikivoyage_file.exists():
+        with open(wikivoyage_file) as f:
+            return json.load(f)
+
+    # Fall back to original seed data
     seed_file = Path("/app/seed_data/tokyo_places.json")
     with open(seed_file) as f:
         return json.load(f)
