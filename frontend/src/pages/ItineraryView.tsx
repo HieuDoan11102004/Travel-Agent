@@ -66,37 +66,22 @@ export default function ItineraryViewPage() {
     )
   }
 
-  // For demo, show placeholder itinerary
-  const placeholderDays = [
-    {
-      date: '2024-03-15',
-      places: [
-        {
-          id: '1',
-          name: 'Senso-ji Temple',
-          category: 'attraction',
-          subcategory: 'temple',
-          cost_estimate: 0,
-          duration_hours: 2,
-          rating: 4.7,
-          description: "Tokyo's oldest temple",
-        },
-        {
-          id: '2',
-          name: 'Tokyo Skytree',
-          category: 'attraction',
-          subcategory: 'tower',
-          cost_estimate: 3100,
-          duration_hours: 2.5,
-          rating: 4.5,
-          description: 'Tallest tower in Japan',
-        },
-      ],
-      total_cost: 3100,
-      total_hours: 4.5,
-      travel_time_minutes: 30,
-    },
-  ]
+  // Use actual itinerary data from API
+  const itinerary = data.itinerary
+
+  if (!itinerary) {
+    return (
+      <div className="error-page">
+        <div className="card" style={{ textAlign: 'center' }}>
+          <h2>❌ No Itinerary Data</h2>
+          <p>The itinerary was created but has no data.</p>
+          <Link to="/" className="btn btn-primary" style={{ marginTop: '1rem', display: 'inline-block' }}>
+            Go Home
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="itinerary-page">
@@ -107,11 +92,11 @@ export default function ItineraryViewPage() {
 
       <main className="container">
         <ItineraryViewComponent
-          days={placeholderDays}
-          totalCost={3100}
-          totalHours={4.5}
-          constraintsSatisfied={true}
-          violations={[]}
+          days={itinerary.days}
+          totalCost={itinerary.total_cost}
+          totalHours={itinerary.total_hours}
+          constraintsSatisfied={itinerary.constraints_satisfied ?? true}
+          violations={itinerary.violations ?? []}
         />
       </main>
 

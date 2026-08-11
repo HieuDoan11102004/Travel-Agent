@@ -44,8 +44,9 @@ class TravelPlannerAgent:
         graph.set_entry_point("extract_prefs")
         graph.add_edge("extract_prefs", "retrieve_places")
         graph.add_edge("retrieve_places", "plan_day")
+        graph.add_edge("plan_day", "critic")
 
-        # Loop: plan_day -> critic -> (plan_day or finalize)
+        # Loop: critic -> (plan_day or finalize)
         graph.add_conditional_edges(
             "critic",
             self.nodes["should_continue_loop"],

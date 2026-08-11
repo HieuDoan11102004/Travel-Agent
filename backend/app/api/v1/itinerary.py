@@ -1,10 +1,19 @@
 """Itinerary API endpoints."""
 
+import asyncio
+import uuid
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from typing import Literal
 
+from app.agent.graph import TravelPlannerAgent
+from app.retrieval.embedder import Embedder
+from app.retrieval.hybrid import HybridSearcher
+from app.retrieval.reranker import Reranker
+from app.constraints.validator import ConstraintValidator
+from app.data.duckdb_client import DuckDBClient
 from app.models.itinerary import Itinerary
+import json
+from pathlib import Path
 
 
 router = APIRouter(prefix="/itinerary", tags=["itinerary"])
@@ -32,44 +41,88 @@ class ItineraryResponse(BaseModel):
     error: str | None = None
 
 
-# In-memory storage for demo (replace with PostgreSQL in production)
+# In-memory storage for itineraries
 ITINERARIES: dict[str, dict] = {}
+
+
+def _load_places() -> list[dict]:
+    """Load places from seed data."""
+    seed_file = Path("/app/seed_data/tokyo_places.json")
+    with open(seed_file) as f:
+        return json.load(f)
+
+
+def _create_agent() -> TravelPlannerAgent:
+    """Create agent with seed data indexed."""
+    embedder = Embedder()
+    searcher = HybridSearcher(embedder, qdrant_client=None)
+
+    # Index seed data into BM25
+    places = _load_places()
+    searcher.index_places(places)
+
+    reranker = Reranker()
+    validator = ConstraintValidator()
+
+    return TravelPlannerAgent(embedder, searcher, reranker, validator)
 
 
 @router.post("", response_model=ItineraryResponse)
 async def create_itinerary(request: ItineraryRequest) -> ItineraryResponse:
-    """Generate an itinerary from preferences.
-
-    In production, this would:
-    1. Save to PostgreSQL with pending status
-    2. Trigger the agent async
-    3. Return immediately with itinerary ID
-
-    For now, returns a placeholder response.
-    """
-    import uuid
-
+    """Generate an itinerary from preferences."""
     itinerary_id = str(uuid.uuid4())
+
+    # Build user input string
+    user_input = request.user_input or (
+        f"{request.destination} {request.days} days, {request.people} people, "
+        f"{request.budget} yen"
+    )
+    if request.preferences:
+        for key, value in request.preferences.items():
+            user_input += f", {key}: {value}"
 
     # Create pending record
     ITINERARIES[itinerary_id] = {
         "id": itinerary_id,
-        "status": "pending",
+        "status": "processing",
         "destination": request.destination,
         "days": request.days,
         "people": request.people,
         "budget": request.budget,
         "preferences": request.preferences,
-        "user_input": request.user_input or f"{request.destination} {request.days} days",
+        "user_input": user_input,
+        "itinerary": None,
+        "error": None,
     }
 
+    # Process itinerary synchronously (for demo)
+    try:
+        agent = _create_agent()
+        result = await asyncio.to_thread(agent.run, user_input)
+
+        if result.get("error"):
+            ITINERARIES[itinerary_id]["status"] = "failed"
+            ITINERARIES[itinerary_id]["error"] = result["error"]
+        else:
+            ITINERARIES[itinerary_id]["status"] = "completed"
+            itinerary_data = result.get("itinerary_result")
+            if itinerary_data:
+                try:
+                    ITINERARIES[itinerary_id]["itinerary"] = Itinerary(**itinerary_data).model_dump()
+                except Exception:
+                    ITINERARIES[itinerary_id]["itinerary"] = itinerary_data
+    except Exception as e:
+        ITINERARIES[itinerary_id]["status"] = "failed"
+        ITINERARIES[itinerary_id]["error"] = str(e)
+
+    data = ITINERARIES[itinerary_id]
     return ItineraryResponse(
-        id=itinerary_id,
-        status="pending",
-        destination=request.destination,
-        days=request.days,
+        id=data["id"],
+        status=data["status"],
+        destination=data["destination"],
+        days=data["days"],
         itinerary=None,
-        error=None,
+        error=data.get("error"),
     )
 
 
@@ -80,13 +133,20 @@ async def get_itinerary(itinerary_id: str) -> ItineraryResponse:
         raise HTTPException(status_code=404, detail="Itinerary not found")
 
     data = ITINERARIES[itinerary_id]
+    itinerary_obj = None
+    if data.get("itinerary"):
+        try:
+            itinerary_obj = Itinerary(**data["itinerary"])
+        except Exception:
+            pass
+
     return ItineraryResponse(
         id=data["id"],
         status=data["status"],
         destination=data["destination"],
         days=data["days"],
-        itinerary=None,  # Would load from storage
-        error=None,
+        itinerary=itinerary_obj,
+        error=data.get("error"),
     )
 
 
