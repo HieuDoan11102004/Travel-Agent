@@ -1,10 +1,9 @@
 """Hybrid search combining BM25 and vector similarity with RRF fusion."""
 
-from typing import Literal
 
+from app.data.qdrant_client import QdrantClientWrapper
 from app.retrieval.bm25 import BM25Searcher
 from app.retrieval.embedder import Embedder
-from app.data.qdrant_client import QdrantClientWrapper
 
 
 class HybridSearcher:

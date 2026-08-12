@@ -1,19 +1,18 @@
-"""LangGraph agent for travel planning."""
+"""LangGraph agent for travel planning with Langfuse tracing."""
 
-from typing import Literal
+from langgraph.graph import END, StateGraph
 
-from langgraph.graph import StateGraph, END
-
-from app.agent.state import AgentState
 from app.agent.nodes import create_agent_nodes
+from app.agent.state import AgentState
+from app.config import settings
+from app.constraints.validator import ConstraintValidator
 from app.retrieval.embedder import Embedder
 from app.retrieval.hybrid import HybridSearcher
 from app.retrieval.reranker import Reranker
-from app.constraints.validator import ConstraintValidator
 
 
 class TravelPlannerAgent:
-    """LangGraph-based travel planner agent."""
+    """LangGraph-based travel planner agent with Langfuse tracing."""
 
     def __init__(
         self,
@@ -28,12 +27,26 @@ class TravelPlannerAgent:
         self.validator = validator
         self.nodes = create_agent_nodes(embedder, searcher, reranker, validator)
         self.graph = self._build_graph()
+        self.compiled_graph = self.graph.compile()
+        self._langfuse = None
+
+    def _get_langfuse(self):
+        """Lazy initialization of Langfuse client."""
+        if self._langfuse is None:
+            if settings.langfuse_public_key and settings.langfuse_secret_key:
+                from langfuse import Langfuse
+                self._langfuse = Langfuse(
+                    public_key=settings.langfuse_public_key,
+                    secret_key=settings.langfuse_secret_key,
+                    host=settings.langfuse_base_url,
+                )
+        return self._langfuse
 
     def _build_graph(self) -> StateGraph:
         """Build the LangGraph state machine."""
         graph = StateGraph(AgentState)
 
-        # Add nodes
+        # Add nodes (all async now)
         graph.add_node("extract_prefs", self.nodes["extract_prefs"])
         graph.add_node("retrieve_places", self.nodes["retrieve_places"])
         graph.add_node("plan_day", self.nodes["plan_day"])
@@ -58,17 +71,16 @@ class TravelPlannerAgent:
 
         graph.add_edge("finalize", END)
 
-        return graph.compile()
+        return graph
 
     def run(self, user_input: str) -> dict:
-        """Run the agent with user input.
+        """Run the agent synchronously (uses asyncio under the hood)."""
+        import asyncio
 
-        Args:
-            user_input: Natural language input like "Tokyo 3 days, 2 people, 500000 yen"
+        return asyncio.run(self.arun(user_input))
 
-        Returns:
-            AgentState with itinerary_result
-        """
+    async def arun(self, user_input: str) -> dict:
+        """Run the agent with async/await support for LLM calls."""
         initial_state: AgentState = {
             "user_input": user_input,
             "preferences": None,
@@ -81,14 +93,26 @@ class TravelPlannerAgent:
             "error": None,
         }
 
-        result = self.graph.invoke(initial_state)
-        return result
+        langfuse = self._get_langfuse()
 
-    async def arun(self, user_input: str) -> dict:
-        """Async version of run."""
-        import asyncio
+        if langfuse:
+            with langfuse.start_as_current_observation(
+                name="itinerary-generation",
+                input={"user_input": user_input},
+                metadata={"type": "itinerary", "framework": "langgraph"},
+            ) as trace:
+                result = await self.compiled_graph.ainvoke(initial_state)
 
-        def run_sync():
-            return self.run(user_input)
+                # Add metadata to trace
+                if result.get("preferences"):
+                    trace.metadata = {
+                        "destination": result["preferences"].destination,
+                        "days": result["preferences"].days,
+                        "people": result["preferences"].people,
+                        "budget": result["preferences"].budget,
+                        "style": result["preferences"].style,
+                    }
 
-        return await asyncio.to_thread(run_sync)
+                return result
+        else:
+            return await self.compiled_graph.ainvoke(initial_state)

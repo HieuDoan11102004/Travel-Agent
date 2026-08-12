@@ -1,5 +1,6 @@
-import duckdb
 from pathlib import Path
+
+import duckdb
 
 from app.models.place import Place
 

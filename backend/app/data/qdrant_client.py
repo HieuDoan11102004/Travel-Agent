@@ -1,8 +1,7 @@
-from typing import Annotated
 
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
-from qdrant_client.models import Distance, VectorParams, PointStruct
+from qdrant_client.models import Distance, PointStruct, VectorParams
 
 from app.models.place import Place
 

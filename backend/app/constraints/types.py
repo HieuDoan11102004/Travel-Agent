@@ -3,7 +3,7 @@
 from enum import Enum
 
 
-class ConstraintType(str, Enum):
+class ConstraintType(str, Enum):  # noqa: UP042
     """Types of constraints."""
 
     HARD = "hard"  # Must satisfy or list as violation
@@ -40,21 +40,26 @@ def check_daily_cost(day_plan, preferences) -> tuple[bool, str | None]:
     """Check daily cost doesn't exceed budget."""
     daily_limit = (preferences.budget // preferences.days) * DAILY_BUDGET_MULTIPLIER
     if day_plan.total_cost > daily_limit:
-        return False, f"Daily cost ¥{day_plan.total_cost:,} exceeds limit ¥{int(daily_limit):,}"
+        msg = f"Daily cost ¥{day_plan.total_cost:,} exceeds limit ¥{int(daily_limit):,}"
+        return False, msg
     return True, None
 
 
 def check_daily_hours(day_plan, preferences) -> tuple[bool, str | None]:
     """Check daily hours don't exceed limit."""
     if day_plan.total_hours > MAX_DAILY_HOURS:
-        return False, f"Daily hours {day_plan.total_hours:.1f} exceeds {MAX_DAILY_HOURS}h limit"
+        msg = f"Daily hours {day_plan.total_hours:.1f} exceeds {MAX_DAILY_HOURS}h limit"
+        return False, msg
     return True, None
 
 
 def check_travel_time(day_plan, preferences) -> tuple[bool, str | None]:
     """Check travel time doesn't exceed limit."""
     if day_plan.travel_time_minutes > MAX_TRAVEL_TIME_MINUTES:
-        return False, f"Travel time {day_plan.travel_time_minutes}min exceeds {MAX_TRAVEL_TIME_MINUTES}min limit"
+        limit = MAX_TRAVEL_TIME_MINUTES
+        actual = day_plan.travel_time_minutes
+        msg = f"Travel time {actual}min exceeds {limit}min limit"
+        return False, msg
     return True, None
 
 

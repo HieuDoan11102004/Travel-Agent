@@ -1,9 +1,11 @@
 """Agent state definition for LangGraph."""
 
-from typing import TypedDict
-from app.models.preferences import UserPreferences
-from app.models.place import Place
+from typing import Any
+
+from typing_extensions import TypedDict
+
 from app.models.day_plan import DayPlan
+from app.models.preferences import UserPreferences
 
 
 class AgentState(TypedDict, total=False):
@@ -18,3 +20,7 @@ class AgentState(TypedDict, total=False):
     iteration: int
     itinerary_result: dict | None
     error: str | None
+    # LLM-related state
+    llm_extracted: dict[str, Any] | None
+    current_llm_plan: dict[str, Any] | None
+    llm_critique: dict[str, Any] | None

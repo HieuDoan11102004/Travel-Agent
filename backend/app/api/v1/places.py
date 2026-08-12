@@ -1,11 +1,8 @@
 """Places search API endpoints."""
 
+
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
-from typing import Literal
-
-from app.models.place import Place
-
 
 router = APIRouter(prefix="/places", tags=["places"])
 

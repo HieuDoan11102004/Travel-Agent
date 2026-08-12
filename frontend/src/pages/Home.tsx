@@ -8,7 +8,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
 
-  const handleSubmit = async (preferences: Preferences) => {
+  const handleSubmit = async (preferences: Preferences, userInput?: string) => {
     setLoading(true)
     setError(null)
 
@@ -22,6 +22,7 @@ export default function Home() {
           style: preferences.style,
           mobility: preferences.mobility,
         },
+        user_input: userInput,
       })
 
       if (response.id) {
@@ -44,7 +45,7 @@ export default function Home() {
       <main className="main-content">
         <div className="card">
           <h2>Plan Your Trip</h2>
-          <p className="subtitle">Enter your preferences and let AI create your perfect itinerary</p>
+          <p className="subtitle">Tell us what you want, and AI will create your perfect itinerary</p>
 
           {error && <div className="error-message">{error}</div>}
 

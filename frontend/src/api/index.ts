@@ -20,6 +20,7 @@ export interface ItineraryRequest {
   people: number
   budget: number
   preferences?: Partial<Preferences>
+  user_input?: string
 }
 
 export interface ItineraryResponse {

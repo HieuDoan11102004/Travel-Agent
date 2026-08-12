@@ -14,6 +14,13 @@ class Settings(BaseSettings):
 
     # OpenAI
     openai_api_key: str = ""
+    openai_model: str = "gpt-4o-mini"
+    openai_temperature: float = 0.3
+
+    # Langfuse (optional - for AI observability)
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_base_url: str = "https://us.cloud.langfuse.com"
 
     # Database
     postgres_url: str = "postgresql://user:pass@localhost:5432/travel"

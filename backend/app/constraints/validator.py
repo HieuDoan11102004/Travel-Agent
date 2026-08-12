@@ -1,8 +1,7 @@
 """Constraint validator for day plans and itineraries."""
 
-from typing import Literal
 
-from app.constraints.types import Constraint, ConstraintType, get_hard_constraints
+from app.constraints.types import Constraint, get_hard_constraints
 from app.models.day_plan import DayPlan
 from app.models.preferences import UserPreferences
 

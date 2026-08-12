@@ -1,9 +1,8 @@
 """OpenAI embeddings service for vector search."""
 
-from openai import OpenAI
-from typing import Literal
 
 from langchain_openai import OpenAIEmbeddings
+from openai import OpenAI
 
 
 class Embedder:

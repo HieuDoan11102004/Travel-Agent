@@ -1,7 +1,7 @@
 """BM25 keyword search implementation."""
 
 import re
-from typing import Callable
+
 from rank_bm25 import BM25Okapi
 
 

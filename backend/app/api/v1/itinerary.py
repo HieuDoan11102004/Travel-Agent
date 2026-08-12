@@ -1,20 +1,19 @@
 """Itinerary API endpoints."""
 
 import asyncio
+import json
 import uuid
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.agent.graph import TravelPlannerAgent
+from app.constraints.validator import ConstraintValidator
+from app.models.itinerary import Itinerary
 from app.retrieval.embedder import Embedder
 from app.retrieval.hybrid import HybridSearcher
 from app.retrieval.reranker import Reranker
-from app.constraints.validator import ConstraintValidator
-from app.data.duckdb_client import DuckDBClient
-from app.models.itinerary import Itinerary
-import json
-from pathlib import Path
-
 
 router = APIRouter(prefix="/itinerary", tags=["itinerary"])
 
@@ -22,7 +21,9 @@ router = APIRouter(prefix="/itinerary", tags=["itinerary"])
 class ItineraryRequest(BaseModel):
     """Request model for itinerary generation."""
 
-    destination: str = Field(..., min_length=1, max_length=100, description="Destination city")
+    destination: str = Field(
+        ..., min_length=1, max_length=100, description="Destination city"
+    )
     days: int = Field(..., ge=1, le=30, description="Number of days")
     people: int = Field(default=1, ge=1, le=20, description="Number of people")
     budget: int = Field(..., ge=1000, description="Budget in JPY")
@@ -115,7 +116,8 @@ async def create_itinerary(request: ItineraryRequest) -> ItineraryResponse:
             itinerary_data = result.get("itinerary_result")
             if itinerary_data:
                 try:
-                    ITINERARIES[itinerary_id]["itinerary"] = Itinerary(**itinerary_data).model_dump()
+                    itinerary_obj = Itinerary(**itinerary_data)
+                    ITINERARIES[itinerary_id]["itinerary"] = itinerary_obj.model_dump()
                 except Exception:
                     ITINERARIES[itinerary_id]["itinerary"] = itinerary_data
     except Exception as e:

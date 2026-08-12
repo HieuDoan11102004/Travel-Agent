@@ -1,8 +1,6 @@
 """Reranker for improving search result quality."""
 
-from typing import Literal
 
-from app.models.place import Place
 from app.models.preferences import UserPreferences
 
 

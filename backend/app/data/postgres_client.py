@@ -1,11 +1,17 @@
-from datetime import datetime
-from typing import AsyncGenerator
-
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, JSON, Text, ForeignKey
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase, relationship, Mapped, mapped_column
-from sqlalchemy.dialects.postgresql import UUID
 import uuid
+from collections.abc import AsyncGenerator
+from datetime import datetime
+
+from sqlalchemy import (
+    JSON,
+    DateTime,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
@@ -95,9 +101,11 @@ class PostgresClient:
                 }
             return None
 
-    async def update_itinerary_result(self, itinerary_id: str, result_json: dict) -> None:
+    async def update_itinerary_result(
+        self, itinerary_id: str, result_json: dict
+    ) -> None:
         async with self.async_session() as session:
-            from sqlalchemy import select, update
+            from sqlalchemy import update
 
             await session.execute(
                 update(ItineraryDB)
@@ -106,7 +114,9 @@ class PostgresClient:
             )
             await session.commit()
 
-    async def save_search(self, query: str, results_count: int, response_time_ms: int) -> None:
+    async def save_search(
+        self, query: str, results_count: int, response_time_ms: int
+    ) -> None:
         async with self.async_session() as session:
             search = SearchHistoryDB(
                 query=query,

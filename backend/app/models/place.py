@@ -11,7 +11,16 @@ class Location(BaseModel):
 class Place(BaseModel):
     id: str = Field(..., description="Unique identifier")
     name: str = Field(..., max_length=200)
-    category: Literal["attraction", "restaurant", "hotel", "transport", "shopping", "nature", "cultural", "entertainment"]
+    category: Literal[
+        "attraction",
+        "restaurant",
+        "hotel",
+        "transport",
+        "shopping",
+        "nature",
+        "cultural",
+        "entertainment",
+    ]
     subcategory: str = Field(..., max_length=100)
     location: Location
     cost_estimate: int = Field(..., ge=0, description="Cost in JPY")
