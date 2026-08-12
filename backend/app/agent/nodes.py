@@ -69,21 +69,51 @@ def create_agent_nodes(
 
     def retrieve_places(state: AgentState) -> AgentState:
         """Retrieve relevant places using hybrid search."""
+        from app.agent.llm import get_langfuse_client
+
         preferences = state.get("preferences")
         if not preferences:
             return {**state, "error": "No preferences extracted"}
 
-        query = _build_search_query(preferences)
-        categories = preferences.categories if preferences.categories else None
-        results = searcher.search(query, top_k=50, categories=categories)
-        reranked = reranker.rerank(results, preferences=preferences)
+        langfuse = get_langfuse_client()
 
-        logger.info(f"Retrieved {len(reranked)} places for {preferences.destination}")
+        if langfuse:
+            with langfuse.start_as_current_observation(
+                name="retrieve-places",
+                input={
+                    "destination": preferences.destination,
+                    "categories": preferences.categories,
+                    "style": preferences.style,
+                },
+            ) as obs:
+                query = _build_search_query(preferences)
+                categories = preferences.categories if preferences.categories else None
+                results = searcher.search(query, top_k=50, categories=categories)
+                reranked = reranker.rerank(results, preferences=preferences)
 
-        return {
-            **state,
-            "retrieved_places": reranked,
-        }
+                logger.info(f"Retrieved {len(reranked)} places for {preferences.destination}")
+
+                obs.output = {
+                    "places_count": len(reranked),
+                    "top_places": [p["place"]["name"] for p in reranked[:5]],
+                }
+
+                return {
+                    **state,
+                    "retrieved_places": reranked,
+                }
+        else:
+            query = _build_search_query(preferences)
+            categories = preferences.categories if preferences.categories else None
+            results = searcher.search(query, top_k=50, categories=categories)
+            reranked = reranker.rerank(results, preferences=preferences)
+
+            logger.info(f"Retrieved {len(reranked)} places for {preferences.destination}")
+
+            return {
+                **state,
+                "retrieved_places": reranked,
+            }
 
     async def plan_day(state: AgentState) -> AgentState:
         """Generate day plan for current day using LLM."""
@@ -270,6 +300,8 @@ def create_agent_nodes(
 
     def finalize(state: AgentState) -> AgentState:
         """Finalize the itinerary."""
+        from app.agent.llm import get_langfuse_client
+
         preferences = state.get("preferences")
         day_plans = state.get("day_plans", [])
         violations = state.get("violations", [])
@@ -293,6 +325,23 @@ def create_agent_nodes(
             violations=violation_msgs,
             preferences_summary=preferences.summary(),
         )
+
+        langfuse = get_langfuse_client()
+        if langfuse:
+            with langfuse.start_as_current_observation(
+                name="finalize",
+                input={
+                    "destination": preferences.destination,
+                    "days_planned": len(day_plans),
+                    "total_cost": total_cost,
+                    "total_hours": total_hours,
+                },
+            ) as obs:
+                obs.output = {
+                    "status": "completed",
+                    "constraints_satisfied": len(violations) == 0,
+                    "violations_count": len(violations),
+                }
 
         return {
             **state,
