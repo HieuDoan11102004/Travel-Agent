@@ -184,7 +184,8 @@ def create_agent_nodes(
         passed, hard_violations = validator.validate_day_plan(latest_day, preferences)
 
         hard_violation_msgs = [
-            f"{v.constraint_name}: {v.message}" for v in hard_violations
+            f"{v.constraint_name}: {v.message}" if hasattr(v, 'constraint_name') else str(v)
+            for v in hard_violations
         ]
 
         llm = get_llm_client()

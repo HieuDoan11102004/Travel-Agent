@@ -1,7 +1,12 @@
 """LangGraph agent for travel planning with Langfuse tracing."""
 
+import logging
+from contextlib import contextmanager
+from typing import Generator
+
 from langgraph.graph import END, StateGraph
 
+from app.agent.llm import get_langfuse_client
 from app.agent.nodes import create_agent_nodes
 from app.agent.state import AgentState
 from app.config import settings
@@ -9,6 +14,8 @@ from app.constraints.validator import ConstraintValidator
 from app.retrieval.embedder import Embedder
 from app.retrieval.hybrid import HybridSearcher
 from app.retrieval.reranker import Reranker
+
+logger = logging.getLogger(__name__)
 
 
 class TravelPlannerAgent:
@@ -28,19 +35,10 @@ class TravelPlannerAgent:
         self.nodes = create_agent_nodes(embedder, searcher, reranker, validator)
         self.graph = self._build_graph()
         self.compiled_graph = self.graph.compile()
-        self._langfuse = None
 
     def _get_langfuse(self):
-        """Lazy initialization of Langfuse client."""
-        if self._langfuse is None:
-            if settings.langfuse_public_key and settings.langfuse_secret_key:
-                from langfuse import Langfuse
-                self._langfuse = Langfuse(
-                    public_key=settings.langfuse_public_key,
-                    secret_key=settings.langfuse_secret_key,
-                    host=settings.langfuse_base_url,
-                )
-        return self._langfuse
+        """Get shared Langfuse client."""
+        return get_langfuse_client()
 
     def _build_graph(self) -> StateGraph:
         """Build the LangGraph state machine."""
@@ -95,24 +93,33 @@ class TravelPlannerAgent:
 
         langfuse = self._get_langfuse()
 
-        if langfuse:
-            with langfuse.start_as_current_observation(
-                name="itinerary-generation",
-                input={"user_input": user_input},
-                metadata={"type": "itinerary", "framework": "langgraph"},
-            ) as trace:
-                result = await self.compiled_graph.ainvoke(initial_state)
+        try:
+            if langfuse:
+                with langfuse.start_as_current_observation(
+                    name="itinerary-generation",
+                    input={"user_input": user_input},
+                    metadata={"type": "itinerary", "framework": "langgraph"},
+                ) as trace:
+                    result = await self.compiled_graph.ainvoke(initial_state)
 
-                # Add metadata to trace
-                if result.get("preferences"):
-                    trace.metadata = {
-                        "destination": result["preferences"].destination,
-                        "days": result["preferences"].days,
-                        "people": result["preferences"].people,
-                        "budget": result["preferences"].budget,
-                        "style": result["preferences"].style,
-                    }
+                    # Add metadata to trace
+                    if result.get("preferences"):
+                        trace.metadata = {
+                            "destination": result["preferences"].destination,
+                            "days": result["preferences"].days,
+                            "people": result["preferences"].people,
+                            "budget": result["preferences"].budget,
+                            "style": result["preferences"].style,
+                        }
 
-                return result
-        else:
-            return await self.compiled_graph.ainvoke(initial_state)
+                    # Flush to ensure traces are sent
+                    langfuse.flush()
+                    return result
+            else:
+                logger.warning("Langfuse not configured - tracing disabled")
+                return await self.compiled_graph.ainvoke(initial_state)
+        except Exception as e:
+            logger.error(f"Agent execution error: {e}")
+            if langfuse:
+                langfuse.flush()
+            raise

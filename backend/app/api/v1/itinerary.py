@@ -48,14 +48,20 @@ ITINERARIES: dict[str, dict] = {}
 
 def _load_places() -> list[dict]:
     """Load places from seed data."""
+    import os
+
+    # Get the backend directory (parent of app/api/v1/)
+    base_dir = Path(__file__).resolve().parent.parent.parent.parent
+    seed_dir = base_dir / "seed_data"
+
     # Try wikivoyage data first, fall back to original seed data
-    wikivoyage_file = Path("/app/seed_data/wikivoyage_places.json")
+    wikivoyage_file = seed_dir / "wikivoyage_places.json"
     if wikivoyage_file.exists():
         with open(wikivoyage_file) as f:
             return json.load(f)
 
     # Fall back to original seed data
-    seed_file = Path("/app/seed_data/tokyo_places.json")
+    seed_file = seed_dir / "tokyo_places.json"
     with open(seed_file) as f:
         return json.load(f)
 
@@ -103,10 +109,10 @@ async def create_itinerary(request: ItineraryRequest) -> ItineraryResponse:
         "error": None,
     }
 
-    # Process itinerary synchronously (for demo)
+    # Process itinerary asynchronously
     try:
         agent = _create_agent()
-        result = await asyncio.to_thread(agent.run, user_input)
+        result = await agent.arun(user_input)
 
         if result.get("error"):
             ITINERARIES[itinerary_id]["status"] = "failed"

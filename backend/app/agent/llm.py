@@ -1,11 +1,38 @@
 """LLM client wrapper for travel planning agent with Langfuse tracing."""
 
 import json
+import logging
 from typing import Any
 
 from openai import AsyncOpenAI
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+# Shared Langfuse client - singleton
+_langfuse_client = None
+
+
+def get_langfuse_client():
+    """Get or create shared Langfuse client."""
+    global _langfuse_client
+    if _langfuse_client is None:
+        if settings.langfuse_public_key and settings.langfuse_secret_key:
+            try:
+                from langfuse import Langfuse
+                _langfuse_client = Langfuse(
+                    public_key=settings.langfuse_public_key,
+                    secret_key=settings.langfuse_secret_key,
+                    host=settings.langfuse_base_url,
+                )
+                logger.info("Langfuse client initialized successfully")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Langfuse: {e}")
+                _langfuse_client = None
+        else:
+            logger.debug("Langfuse keys not configured")
+    return _langfuse_client
 
 EXTRACT_PREFS_PROMPT = """You are a travel planning assistant. Extract user preferences.
 
@@ -101,19 +128,10 @@ class LLMClient:
         self.client = AsyncOpenAI(api_key=settings.openai_api_key)
         self.model = model
         self.temperature = temperature
-        self._langfuse = None
 
     def _get_langfuse(self):
-        """Lazy initialization of Langfuse client."""
-        if self._langfuse is None:
-            if settings.langfuse_public_key and settings.langfuse_secret_key:
-                from langfuse import Langfuse
-                self._langfuse = Langfuse(
-                    public_key=settings.langfuse_public_key,
-                    secret_key=settings.langfuse_secret_key,
-                    host=settings.langfuse_base_url,
-                )
-        return self._langfuse
+        """Get shared Langfuse client."""
+        return get_langfuse_client()
 
     async def extract_preferences(self, user_input: str) -> dict[str, Any]:
         """Extract structured preferences and implicit preferences from free-text."""
@@ -122,16 +140,18 @@ class LLMClient:
         if langfuse:
             with langfuse.start_as_current_observation(
                 name="extract-preferences",
-                as_type="generation",
-                model=self.model,
                 input={"user_input": user_input},
-            ) as generation:
+                metadata={
+                    "model": self.model,
+                    "temperature": self.temperature,
+                },
+            ) as observation:
                 response = await self._call_llm(
                     system_prompt=EXTRACT_PREFS_PROMPT,
                     user_message=user_input,
                 )
                 result = json.loads(response)
-                generation.output = result
+                observation.output = result
                 return result
         else:
             return json.loads(
@@ -192,16 +212,18 @@ class LLMClient:
         if langfuse:
             with langfuse.start_as_current_observation(
                 name=f"plan-day-{day_number}",
-                as_type="generation",
-                model=self.model,
                 input=input_data,
-            ) as generation:
+                metadata={
+                    "model": self.model,
+                    "temperature": self.temperature,
+                },
+            ) as observation:
                 response = await self._call_llm(
                     system_prompt=prompt,
                     user_message=f"Plan day {day_number} of {total_days}.",
                 )
                 result = json.loads(response)
-                generation.output = result
+                observation.output = result
                 return result
         else:
             return json.loads(
@@ -254,16 +276,18 @@ class LLMClient:
         if langfuse:
             with langfuse.start_as_current_observation(
                 name="critique-day",
-                as_type="generation",
-                model=self.model,
                 input=input_data,
-            ) as generation:
+                metadata={
+                    "model": self.model,
+                    "temperature": self.temperature,
+                },
+            ) as observation:
                 response = await self._call_llm(
                     system_prompt=prompt,
                     user_message="Review this day's plan.",
                 )
                 result = json.loads(response)
-                generation.output = result
+                observation.output = result
                 return result
         else:
             return json.loads(
@@ -304,16 +328,18 @@ class LLMClient:
         if langfuse:
             with langfuse.start_as_current_observation(
                 name="should-continue",
-                as_type="generation",
-                model=self.model,
                 input=input_data,
-            ) as generation:
+                metadata={
+                    "model": self.model,
+                    "temperature": self.temperature,
+                },
+            ) as observation:
                 response = await self._call_llm(
                     system_prompt=prompt,
                     user_message="Should we finalize this itinerary?",
                 )
                 result = json.loads(response)
-                generation.output = result
+                observation.output = result
                 return result
         else:
             return json.loads(
